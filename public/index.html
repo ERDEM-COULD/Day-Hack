@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wi-Fi Terminal - Hacklenme Modu</title>
+<style>
+  body {
+    margin: 0; height: 100vh;
+    display: flex; flex-direction: column;
+    background: #121212; color: #0f0;
+    font-family: monospace;
+    user-select: none;
+  }
+  header {
+    padding: 12px 24px;
+    background: #0b0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #output {
+    flex-grow: 1;
+    padding: 10px 20px;
+    background: #000;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-size: 14px;
+    line-height: 1.2;
+    color: #0f0;
+  }
+  #input-container {
+    display: flex;
+    background: #222;
+    padding: 12px 24px;
+  }
+  #input {
+    flex-grow: 1;
+    font-size: 16px;
+    font-family: monospace;
+    background: #111;
+    border: 2px solid #0b0;
+    color: #0f0;
+    padding: 8px 12px;
+    border-radius: 5px;
+  }
+  button {
+    margin-left: 10px;
+    background: #0b0;
+    color: black;
+    font-weight: 700;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  button:hover {
+    background: #2f2;
+  }
+
+  /* Hacklenme mod overlay */
+  #hack-overlay {
+    display: none;
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: black;
+    color: #0f0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 10px;
+    overflow-y: auto;
+    z-index: 9999;
+    user-select: none;
+
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  /* Modal arka plan */
+  #modal-bg {
+    display:none;
+    position:fixed; top:0; left:0; right:0; bottom:0;
+    background:rgba(0,0,0,0.7);
+    justify-content:center; align-items:center;
+    z-index:10000;
+  }
+
+  /* Modal içerik */
+  #modal-content {
+    background:#222;
+    padding:20px;
+    border-radius:10px;
+    max-width:400px;
+    width:90%;
+    display:flex; flex-direction: column;
+  }
+
+  #modal-content label {
+    color:#0f0;
+    font-weight:700;
+    margin-bottom:10px;
+  }
+
+  #modal-textarea {
+    font-family: monospace;
+    font-size:14px;
+    background:#111;
+    color:#0f0;
+    border: 1px solid #0b0;
+    border-radius:5px;
+    padding:10px;
+    resize: vertical;
+  }
+
+  #send-msg-btn {
+    margin-top:15px;
+    background:#0b0;
+    color:black;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>Wi-Fi Terminal - Hacklenme Modu</div>
+  <div>
+    <button id="clear-btn">Temizle</button>
+    <button id="msg-btn">Mesaj Gönder</button>
+    <button id="start-hack-btn">Hacklenme Başlat</button>
+    <button id="stop-hack-btn" disabled>Hacklenme Kapat</button>
+  </div>
+</header>
+
+<div id="output" aria-live="polite" role="log"></div>
+
+<div id="input-container">
+  <input id="input" type="text" placeholder="Komut yaz ve Enter'a bas..." autocomplete="off" spellcheck="false" />
+</div>
+
+<!-- Mesaj modal -->
+<div id="modal-bg">
+  <div id="modal-content">
+    <label>Mesajını yaz ve gönder:</label>
+    <textarea id="modal-textarea" rows="5"></textarea>
+    <button id="send-msg-btn">Gönder</button>
+  </div>
+</div>
+
+<!-- Hacklenme overlay -->
+<div id="hack-overlay" tabindex="0"></div>
+
+<script>
+  const output = document.getElementById('output');
+  const input = document.getElementById('input');
+  const clearBtn = document.getElementById('clear-btn');
+  const msgBtn = document.getElementById('msg-btn');
+  const modalBg = document.getElementById('modal-bg');
+  const modalTextarea = document.getElementById('modal-textarea');
+  const sendMsgBtn = document.getElementById('send-msg-btn');
+
+  const startHackBtn = document.getElementById('start-hack-btn');
+  const stopHackBtn = document.getElementById('stop-hack-btn');
+  const hackOverlay = document.getElementById('hack-overlay');
+
+  // Komut gönderme
+  input.addEventListener('keydown', async e => {
+    if (e.key === 'Enter') {
+      const cmd = input.value.trim();
+      if (!cmd) return;
+
+      output.textContent += '> ' + cmd + '\n';
+      input.value = '';
+
+      try {
+        const res = await fetch('/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: cmd }),
+        });
+        const text = await res.text();
+        output.textContent += text + '\n';
+        output.scrollTop = output.scrollHeight;
+      } catch (error) {
+        output.textContent += '[Hata] ' + error.message + '\n';
+      }
+    }
+  });
+
+  // Temizle
+  clearBtn.onclick = () => {
+    output.textContent = '';
+    input.focus();
+  };
+
+  // Mesaj gönder modal aç/kapa
+  msgBtn.onclick = () => {
+    modalBg.style.display = 'flex';
+    modalTextarea.value = '';
+    modalTextarea.focus();
+  };
+
+  // Mesaj gönder
+  sendMsgBtn.onclick = async () => {
+    const msg = modalTextarea.value.trim();
+    if (!msg) return alert('Mesaj boş olamaz!');
+
+    try {
+      await fetch('/sendMessage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+      output.textContent += '[Popup Mesaj Gönderildi]: ' + msg + '\n';
+      output.scrollTop = output.scrollHeight;
+    } catch {
+      output.textContent += '[Hata]: Mesaj gönderilemedi.\n';
+    }
+    modalBg.style.display = 'none';
+    input.focus();
+  };
+
+  // Modal dışına tıklayınca kapat
+  modalBg.onclick = e => {
+    if (e.target === modalBg) {
+      modalBg.style.display = 'none';
+      input.focus();
+    }
+  };
+
+  // Hacklenme modu yönetimi
+  startHackBtn.onclick = async () => {
+    startHackBtn.disabled = true;
+    stopHackBtn.disabled = false;
+    hackOverlay.style.display = 'block';
+
+    try {
+      await fetch('/startHack', { method: 'POST' });
+    } catch {
+      output.textContent += '[Hata]: Hacklenme başlatılamadı.\n';
+      startHackBtn.disabled = false;
+      stopHackBtn.disabled = true;
+      hackOverlay.style.display = 'none';
+    }
+  };
+
+  stopHackBtn.onclick = async () => {
+    startHackBtn.disabled = false;
+    stopHackBtn.disabled = true;
+    hackOverlay.style.display = 'none';
+
+    try {
+      await fetch('/stopHack', { method: 'POST' });
+    } catch {
+      output.textContent += '[Hata]: Hacklenme kapatılamadı.\n';
+    }
+  };
+</script>
+
+</body>
+</html>
