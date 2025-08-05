@@ -1,12 +1,12 @@
 const express = require('express');
+const { exec } = require('child_process');
 const path = require('path');
-const { exec, spawn } = require('child_process');
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-let hackProcess = null;
+let hackActive = false;
 
 // Komut çalıştırma endpointi
 app.post('/run', (req, res) => {
@@ -17,62 +17,38 @@ app.post('/run', (req, res) => {
   });
 });
 
-// Popup mesaj gönderme endpointi - popup-top.ps1 ile
+// Basit popup mesaj simülasyonu (Render’da gerçek popup olmaz, logla sadece)
 app.post('/sendMessage', (req, res) => {
   const { message } = req.body;
-  const scriptPath = path.join(__dirname, 'popup-top.ps1');
-
-  const ps = spawn('powershell.exe', [
-    '-ExecutionPolicy', 'Bypass',
-    '-File', scriptPath,
-    '-Message', message
-  ]);
-
-  ps.on('error', (err) => {
-    console.error('PowerShell çalıştırma hatası:', err);
-    res.status(500).send('Mesaj gösterilemedi.');
-  });
-
-  ps.on('exit', (code) => {
-    if (code === 0) {
-      res.send('Mesaj gösterildi.');
-    } else {
-      res.status(500).send('Mesaj gösterilemedi, PowerShell hatası.');
-    }
-  });
+  console.log('[Popup Mesaj]:', message);
+  res.send('Mesaj konsola yazıldı.');
 });
 
-// Hacklenme başlat endpointi
+// Hack modu başlat (burada sadece flag tutuyoruz)
 app.post('/startHack', (req, res) => {
-  if (hackProcess) return res.status(400).send('Hacklenme zaten açık.');
-
-  const scriptPath = path.join(__dirname, 'popup-hack.ps1');
-  hackProcess = spawn('powershell.exe', [
-    '-ExecutionPolicy', 'Bypass',
-    '-File', scriptPath,
-    '-Message', 'HACKLENIYORSUN!',
-    '-Delay', '300'
-  ]);
-
-  hackProcess.stdout.on('data', data => console.log('Hack stdout:', data.toString()));
-  hackProcess.stderr.on('data', data => console.error('Hack stderr:', data.toString()));
-
-  hackProcess.on('close', (code) => {
-    console.log('Hack process kapandı, kod:', code);
-    hackProcess = null;
-  });
-
-  res.send('Hacklenme modu başlatıldı.');
+  if (hackActive) return res.status(400).send('Hack modu zaten aktif.');
+  hackActive = true;
+  console.log('Hack modu başlatıldı.');
+  res.send('Hack modu başlatıldı.');
 });
 
-// Hacklenme durdur endpointi
+// Hack modu durdur
 app.post('/stopHack', (req, res) => {
-  if (!hackProcess) return res.status(400).send('Hacklenme zaten kapalı.');
-  hackProcess.kill();
-  hackProcess = null;
-  res.send('Hacklenme modu kapatıldı.');
+  if (!hackActive) return res.status(400).send('Hack modu zaten kapalı.');
+  hackActive = false;
+  console.log('Hack modu kapatıldı.');
+  res.send('Hack modu kapatıldı.');
 });
 
-const PORT = 3000;
-const HOST = '192.168.1.153';
-app.listen(PORT, HOST, () => console.log(`Server ${HOST}:${PORT} portunda çalışıyor...`));
+// Statik dosyalar için
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/index.html'));
+});
+
+// Render uyumlu port ve host ayarı
+const PORT = process.env.PORT || 3000;
+const HOST = '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server ${HOST}:${PORT} portunda çalışıyor...`);
+});
